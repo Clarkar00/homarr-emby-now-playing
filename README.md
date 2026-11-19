@@ -2,7 +2,7 @@
 
 An Emby now playing widget for Homarr Custom Widgets that knows about Live TV, DVR and VOD.
 
-Homarr Workshop listing: coming soon · [Download the manifest](widget.json)
+**[Install from Homarr Workshop](https://homarr.dev/workshop/2irz1njw3rl48c0)** · [Download the manifest](widget.json)
 
 ## Screenshots
 

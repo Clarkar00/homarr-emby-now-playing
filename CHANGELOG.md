@@ -2,7 +2,7 @@
 
 ## Workshop revision 1
 
-First release.
+First release. The Workshop stores the manifest with Homarr's default request fields written out (`source`, `auth`, `trigger`, `permission`); behavior is unchanged.
 
 - Live TV rows show the program airing on the channel: title, episode, time slot and progress, with the channel logo.
 - DVR and VOD tags based on folder paths you set. Recordings still in progress show *Still recording · ends …*.

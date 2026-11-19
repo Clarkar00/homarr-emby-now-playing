@@ -14,21 +14,25 @@
       "kind": "query",
       "method": "GET",
       "path": "/Sessions",
+      "trigger": "load",
       "query": {
         "ActiveWithinSeconds": "960"
       },
-      "trigger": "load",
       "auth": "inherit",
       "permission": "view",
       "cacheSeconds": 5
     },
     "stop": {
+      "source": "default",
       "kind": "action",
       "method": "POST",
       "path": "/Sessions/{param:id}/Playing/Stop",
+      "auth": "inherit",
       "invalidates": [
         "sessions"
-      ]
+      ],
+      "trigger": "manual",
+      "permission": "modify"
     }
   },
   "options": {
