@@ -1,0 +1,150 @@
+{
+  "$schema": "homarr-custom-widget-v2",
+  "name": "Emby Now Playing (Live TV & DVR)",
+  "description": "Emby now playing with Live TV awareness: shows the program airing on a channel (title, episode, time slot, progress), recordings still in progress, DVR/VOD tags, remux vs real transcode with a hover reason, HDR/DV and audio format, avatars, channel logos, optional posters and an optional Stop button. Uses your existing Emby integration; viewers need full access to it, so it won't show on public boards for guests.",
+  "sources": {
+    "default": {
+      "type": "integration",
+      "integrationKind": "emby"
+    }
+  },
+  "requests": {
+    "sessions": {
+      "source": "default",
+      "kind": "query",
+      "method": "GET",
+      "path": "/Sessions",
+      "query": {
+        "ActiveWithinSeconds": "960"
+      },
+      "trigger": "load",
+      "auth": "inherit",
+      "permission": "view",
+      "cacheSeconds": 5
+    },
+    "stop": {
+      "kind": "action",
+      "method": "POST",
+      "path": "/Sessions/{param:id}/Playing/Stop",
+      "invalidates": [
+        "sessions"
+      ]
+    }
+  },
+  "options": {
+    "showOverview": {
+      "label": "Show description",
+      "description": "Also print a two-line summary under the title. Off by default; the summary is always available by hovering the episode line.",
+      "control": "switch",
+      "default": false
+    },
+    "titleArt": {
+      "label": "Title artwork",
+      "description": "Icons shows a film, TV or music icon. Posters shows the movie or series poster in its own column next to the title. Live TV and DVR show the channel logo there. Posters need Emby URL; items without a poster keep the icon.",
+      "control": "select",
+      "default": "icons",
+      "choices": [
+        {
+          "label": "Icons",
+          "value": "icons"
+        },
+        {
+          "label": "Posters",
+          "value": "posters"
+        }
+      ]
+    },
+    "showStop": {
+      "label": "Show Stop button",
+      "description": "Adds a small Stop button next to each stream's play method. It asks to confirm first. Stopping runs a Homarr action, so it only works for users who can edit the board.",
+      "control": "switch",
+      "default": false
+    },
+    "maxStreams": {
+      "label": "Max streams shown",
+      "description": "Extra streams still count in the footer but aren't listed. 12 is the maximum because Homarr limits how much one widget can render.",
+      "control": "select",
+      "default": "10",
+      "choices": [
+        {
+          "label": "5",
+          "value": "5"
+        },
+        {
+          "label": "8",
+          "value": "8"
+        },
+        {
+          "label": "10",
+          "value": "10"
+        },
+        {
+          "label": "12",
+          "value": "12"
+        }
+      ]
+    },
+    "dvrPaths": {
+      "label": "DVR recording folders",
+      "description": "Comma-separated folder paths as Emby sees them, e.g. /recordings. Items from these get a DVR tag. Leave empty to turn off.",
+      "control": "text",
+      "default": ""
+    },
+    "vodPaths": {
+      "label": "On-demand (VOD) folders",
+      "description": "Comma-separated folder paths as Emby sees them, e.g. /vod-movies, /vod-tv. Items from these get a VOD tag. Leave empty to turn off.",
+      "control": "text",
+      "default": ""
+    },
+    "tailscaleLabel": {
+      "label": "Label Tailscale connections",
+      "description": "Show 'Tailscale' instead of 'WAN' for clients in 100.64.0.0/10 or fd7a:115c:a1e0::/48. This is a best guess from the address; some ISPs use the same IPv4 range.",
+      "control": "switch",
+      "default": true
+    },
+    "timeFormat": {
+      "label": "Time format",
+      "control": "select",
+      "default": "12h",
+      "choices": [
+        {
+          "label": "12-hour (9:00 PM)",
+          "value": "12h"
+        },
+        {
+          "label": "24-hour (21:00)",
+          "value": "24h"
+        }
+      ]
+    },
+    "libraryColor": {
+      "label": "Library progress bar color",
+      "description": "Color of the progress bar for regular library items. LIVE, DVR and VOD bars always match their tags.",
+      "control": "select",
+      "default": "green",
+      "choices": [
+        {
+          "label": "Green",
+          "value": "green"
+        },
+        {
+          "label": "Board theme color",
+          "value": "theme"
+        }
+      ]
+    },
+    "embyUrl": {
+      "label": "Emby URL (for pictures and links)",
+      "description": "Address you use to open Emby in your browser, e.g. https://emby.example.com (a /web/... ending is fine). Used for user avatars, channel logos, posters and title links. Use https if Homarr is on https. Leave empty for initials and icons only.",
+      "control": "text",
+      "default": ""
+    },
+    "showBranding": {
+      "label": "Show Emby logo",
+      "description": "Show the Emby logo and name in the bottom-right corner.",
+      "control": "switch",
+      "default": true
+    }
+  },
+  "template": "<Box h=\"100%\">\n{[(Array.isArray(data.sessions) ? data.sessions : [])\n  .filter((s) => s.NowPlayingItem)\n  .slice(0, Math.min(12, Number(options.maxStreams ?? 10) || 10))\n  .map((s) => ({\n    id: s.Id,\n    user: s.UserName ?? \"Unknown\",\n    avatar: s.UserId && s.UserPrimaryImageTag && options.embyUrl?.trim() ? options.embyUrl.trim().replace(/\\/web\\/.*$/, \"\").replace(/\\/+$/, \"\").replace(/\\/web$/, \"\") + \"/Users/\" + s.UserId + \"/Images/Primary?height=240&tag=\" + s.UserPrimaryImageTag : \"\",\n    device: (s.Client ?? \"\") + (s.DeviceName ? \" (\" + s.DeviceName + \")\" : \"\"),\n    item: s.NowPlayingItem,\n    live: s.NowPlayingItem.Type === \"TvChannel\",\n    prog: s.NowPlayingItem.Type === \"TvChannel\" ? s.NowPlayingItem.CurrentProgram : null,\n    paused: s.PlayState?.IsPaused === true,\n    method: s.PlayState?.PlayMethod ?? \"\",\n    pos: s.PlayState?.PositionTicks ?? 0,\n    ip: (s.RemoteEndPoint ?? \"\").replace(/^::ffff:/i, \"\").toLowerCase(),\n    tx: s.PlayState?.PlayMethod === \"Transcode\" && s.TranscodingInfo ? s.TranscodingInfo : null,\n    path: (s.NowPlayingItem.Path ?? \"\").toLowerCase(),\n    oct: (s.RemoteEndPoint ?? \"\").replace(/^::ffff:/i, \"\").split(\".\").map((x) => Number(x)),\n    rate: s.TranscodingInfo?.Bitrate ?? s.NowPlayingItem.Bitrate ?? 0,\n    video: (s.NowPlayingItem.MediaStreams ?? []).filter((m) => m.Type === \"Video\")[0],\n    audio: (s.NowPlayingItem.MediaStreams ?? []).filter((m) => m.Type === \"Audio\" && m.Index === s.PlayState?.AudioStreamIndex)[0] ?? (s.NowPlayingItem.MediaStreams ?? []).filter((m) => m.Type === \"Audio\")[0],\n    href: options.embyUrl?.trim() && s.NowPlayingItem.Id ? options.embyUrl.trim().replace(/\\/web\\/.*$/, \"\").replace(/\\/+$/, \"\").replace(/\\/web$/, \"\") + \"/web/index.html#!/item?id=\" + s.NowPlayingItem.Id + (s.ServerId ? \"&serverId=\" + s.ServerId : \"\") : \"\",\n    logo: !options.embyUrl?.trim() ? \"\"\n      : s.NowPlayingItem.Type === \"TvChannel\"\n        ? [[\"LogoLightColor\", \"LogoLight\", \"Primary\"].filter((k) => s.NowPlayingItem.ImageTags?.[k])[0]].map((k) => k ? options.embyUrl.trim().replace(/\\/web\\/.*$/, \"\").replace(/\\/+$/, \"\").replace(/\\/web$/, \"\") + \"/Items/\" + s.NowPlayingItem.Id + \"/Images/\" + k + \"?height=96&tag=\" + s.NowPlayingItem.ImageTags[k] : \"\")[0]\n        : s.NowPlayingItem.Type === \"Recording\" && s.NowPlayingItem.ChannelId && s.NowPlayingItem.ChannelPrimaryImageTag\n          ? options.embyUrl.trim().replace(/\\/web\\/.*$/, \"\").replace(/\\/+$/, \"\").replace(/\\/web$/, \"\") + \"/Items/\" + s.NowPlayingItem.ChannelId + \"/Images/Primary?height=96&tag=\" + s.NowPlayingItem.ChannelPrimaryImageTag\n          : \"\",\n    art: !options.embyUrl?.trim() || options.titleArt !== \"posters\" || s.NowPlayingItem.Type === \"TvChannel\" || s.NowPlayingItem.Type === \"Recording\" ? \"\"\n      : [s.NowPlayingItem.SeriesId && s.NowPlayingItem.SeriesPrimaryImageTag ? [s.NowPlayingItem.SeriesId, s.NowPlayingItem.SeriesPrimaryImageTag] : s.NowPlayingItem.ImageTags?.Primary ? [s.NowPlayingItem.Id, s.NowPlayingItem.ImageTags.Primary] : s.NowPlayingItem.AlbumId && s.NowPlayingItem.AlbumPrimaryImageTag ? [s.NowPlayingItem.AlbumId, s.NowPlayingItem.AlbumPrimaryImageTag] : null]\n        .map((a) => a ? options.embyUrl.trim().replace(/\\/web\\/.*$/, \"\").replace(/\\/+$/, \"\").replace(/\\/web$/, \"\") + \"/Items/\" + a[0] + \"/Images/Primary?height=120&tag=\" + a[1] : \"\")[0],\n    desc: (s.NowPlayingItem.Type === \"TvChannel\" ? s.NowPlayingItem.CurrentProgram?.Overview : s.NowPlayingItem.Overview) ?? \"\",\n  }))\n  .map((v) => ({\n    ...v,\n    title: v.live\n      ? (v.prog?.Name ?? v.item.Name)\n      : (v.item.Type === \"Episode\" || (v.item.Type === \"Recording\" && v.item.ParentIndexNumber > 0))\n        ? (v.item.SeriesName ?? v.item.Name)\n        : v.item.Name,\n    sub: v.live\n      ? [v.item.Name + (v.item.ChannelNumber ? \" · Ch \" + v.item.ChannelNumber : \"\"), v.prog?.EpisodeTitle].filter((x) => x).join(\" · \")\n      : (v.item.Type === \"Episode\" || (v.item.Type === \"Recording\" && v.item.ParentIndexNumber > 0))\n        ? \"S\" + ((v.item.ParentIndexNumber ?? 0) < 10 ? \"0\" : \"\") + (v.item.ParentIndexNumber ?? 0) + \" E\" + ((v.item.IndexNumber ?? 0) < 10 ? \"0\" : \"\") + (v.item.IndexNumber ?? 0) + \" · \" + (v.item.Type === \"Recording\" ? (v.item.EpisodeTitle ?? \"\") : v.item.Name)\n        : v.item.MediaType === \"Audio\" ? [(v.item.Artists ?? []).join(\", \") || v.item.AlbumArtist || \"\", v.item.Album ?? \"\"].filter((x) => x).join(\" · \")\n        : v.item.Type === \"Recording\" && v.item.EpisodeTitle ? v.item.EpisodeTitle : (v.item.ProductionYear ? \"\" + v.item.ProductionYear : \"\"),\n    start: v.prog?.StartDate ? Date.create(v.prog.StartDate) : v.item.Type === \"Recording\" && v.item.StartDate ? Date.create(v.item.StartDate) : 0,\n    end: v.prog?.EndDate ? Date.create(v.prog.EndDate) : v.item.Type === \"Recording\" && v.item.EndDate ? Date.create(v.item.EndDate) : 0,\n    recNow: v.item.Type === \"Recording\" && v.item.Status === \"InProgress\",\n    run: v.item.RunTimeTicks ?? (v.item.Type === \"Recording\" && v.item.StartDate && v.item.EndDate ? (Date.create(v.item.EndDate) - Date.create(v.item.StartDate)) * 10000 : 0),\n    res: v.video?.Width >= 3200 || v.video?.Height >= 2000 ? \"4K\" : v.video?.Width >= 2400 || v.video?.Height >= 1400 ? \"1440p\" : v.video?.Width >= 1800 || v.video?.Height >= 1000 ? \"1080p\" : v.video?.Width >= 1200 || v.video?.Height >= 700 ? \"720p\" : v.video?.Height ? v.video.Height + \"p\" : \"\",\n    hdr: [(v.video?.ExtendedVideoType && v.video.ExtendedVideoType !== \"None\" ? v.video.ExtendedVideoType : v.video?.VideoRange ?? \"\").toLowerCase()].map((x) => x.includes(\"dolby\") ? \"DV\" : x.includes(\"10plus\") || x.includes(\"10+\") ? \"HDR10+\" : x.includes(\"hlg\") ? \"HLG\" : x.includes(\"hdr\") ? \"HDR10\" : \"\")[0],\n    aud: v.audio || v.tx?.AudioCodec\n      ? [v.tx && v.tx.IsAudioDirect !== true && v.tx.AudioCodec ? { c: v.tx.AudioCodec, n: v.tx.AudioChannels ?? 0, l: \"\", t: \"\" } : { c: v.audio?.Codec ?? \"\", n: v.audio?.Channels ?? 0, l: v.audio?.ChannelLayout ?? \"\", t: ((v.audio?.DisplayTitle ?? \"\") + \" \" + (v.audio?.Profile ?? \"\") + \" \" + (v.audio?.Title ?? \"\")).toLowerCase() }]\n          .map((a) => [({ keac3: \"DD+\", kac3: \"DD\", ktruehd: \"TrueHD\", kdts: \"DTS\", kaac: \"AAC\", kflac: \"FLAC\", kopus: \"Opus\", kmp3: \"MP3\", kmp2: \"MP2\", kvorbis: \"Vorbis\" })[\"k\" + a.c.toLowerCase()] ?? a.c.toUpperCase(), a.t.includes(\"atmos\") ? \"Atmos\" : \"\", a.l === \"stereo\" || a.n === 2 ? \"Stereo\" : a.l === \"mono\" || a.n === 1 ? \"Mono\" : a.l ? a.l : a.n > 0 ? a.n + \"ch\" : \"\"].filter((x) => x).join(\" \"))[0]\n      : \"\",\n    net: v.ip.includes(\":\") ? (options.tailscaleLabel !== false && v.ip.startsWith(\"fd7a:115c:a1e0\") ? \"Tailscale\" : v.ip === \"::1\" || v.ip.startsWith(\"fe80\") || v.ip.startsWith(\"fc\") || v.ip.startsWith(\"fd\") ? \"LAN\" : \"WAN\") : options.tailscaleLabel !== false && v.oct[0] === 100 && v.oct[1] >= 64 && v.oct[1] <= 127 ? \"Tailscale\" : v.oct[0] === 10 || v.oct[0] === 127 || (v.oct[0] === 192 && v.oct[1] === 168) || (v.oct[0] === 172 && v.oct[1] >= 16 && v.oct[1] <= 31) ? \"LAN\" : \"WAN\",\n    mb: Math.round(v.rate / 100000) / 10,\n    icon: v.item.Type === \"TvChannel\" ? \"device-tv\" : v.item.Type === \"Episode\" || v.item.Type === \"Recording\" ? \"device-tv-old\" : v.item.MediaType === \"Audio\" ? \"music\" : \"movie\",\n  }))\n  .map((v) => ({\n    ...v,\n    pct: v.live\n      ? (v.end > v.start ? Math.min(100, Math.max(0, ((Date.now() - v.start) * 100) / (v.end - v.start))) : 0)\n      : (v.run > 0 ? Math.min(100, (v.pos * 100) / v.run) : 0),\n    left: v.live\n      ? (v.end > 0 ? Math.max(0, Math.round((v.end - Date.now()) / 60000)) : -1)\n      : v.recNow ? -1\n      : (v.run > 0 ? Math.max(0, Math.round((v.run - v.pos) / 600000000)) : -1),\n    slot: v.recNow && v.end > 0\n      ? \"Still recording · ends \" + (options.timeFormat === \"24h\" ? Date.toLocaleTimeString(v.end, \"en-GB\").replace(/:\\d\\d$/, \"\") : Date.toLocaleTimeString(v.end, \"en-US\").replace(/:\\d\\d /, \" \"))\n      : v.live && v.start > 0 && v.end > 0\n      ? (options.timeFormat === \"24h\" ? Date.toLocaleTimeString(v.start, \"en-GB\").replace(/:\\d\\d$/, \"\") : Date.toLocaleTimeString(v.start, \"en-US\").replace(/:\\d\\d /, \" \")) + \" – \" + (options.timeFormat === \"24h\" ? Date.toLocaleTimeString(v.end, \"en-GB\").replace(/:\\d\\d$/, \"\") : Date.toLocaleTimeString(v.end, \"en-US\").replace(/:\\d\\d /, \" \"))\n      : \"\",\n    tag: v.live ? \"LIVE\" : v.path && (options.dvrPaths ?? \"\").toLowerCase().split(\",\").map((p) => p.trim()).filter((p) => p && v.path.startsWith(p)).length > 0 ? \"DVR\" : v.path && (options.vodPaths ?? \"\").toLowerCase().split(\",\").map((p) => p.trim()).filter((p) => p && v.path.startsWith(p)).length > 0 ? \"VOD\" : \"\",\n    vx: v.tx ? v.tx.IsVideoDirect !== true : false,\n    ax: v.tx ? v.tx.IsAudioDirect !== true : false,\n  }))\n  .map((v) => ({\n    ...v,\n    badge: v.tx ? (v.vx && v.ax ? \"TRANSCODE A/V\" : v.vx ? \"TRANSCODE VIDEO\" : v.ax ? \"TRANSCODE AUDIO\" : \"REMUX\") : v.method === \"DirectPlay\" ? \"DIRECT PLAY\" : v.method === \"DirectStream\" ? \"DIRECT STREAM\" : v.method === \"Transcode\" ? \"TRANSCODE\" : v.method.toUpperCase(),\n    hot: v.method === \"Transcode\" && (!v.tx || v.vx || v.ax),\n    tip: v.tx\n      ? [\"Video: \" + (v.vx ? \"converted to \" + (v.tx.VideoCodec ?? \"?\") + (v.tx.VideoEncoderIsHardware ? \" (hardware)\" : \" (software)\") : \"copied\" + (v.tx.VideoCodec ? \" (\" + v.tx.VideoCodec + \")\" : \"\")),\n         \"Audio: \" + (v.ax ? \"converted to \" + (v.tx.AudioCodec ?? \"?\") : \"copied\" + (v.tx.AudioCodec ? \" (\" + v.tx.AudioCodec + \")\" : \"\")),\n         (v.tx.TranscodeReasons ?? []).length > 0 ? \"Why: \" + (v.tx.TranscodeReasons ?? []).map((x) => x.replace(/([a-z])([A-Z])/g, \"$1 $2\").toLowerCase()).join(\", \") : \"\"].filter((x) => x).join(\" · \")\n      : v.method === \"DirectPlay\" ? \"Direct play: the file is sent as-is\" : v.method === \"DirectStream\" ? \"Direct stream: video and audio are sent as-is\" : \"\",\n  }))\n].map((rows) => (\n  <Stack gap={0} h=\"100%\" p=\"xs\" style={{ overflowY: \"auto\" }}>\n    {status.sessions?.loading ? (\n      <Text size=\"sm\" c=\"dimmed\">Loading streams…</Text>\n    ) : status.sessions?.error || status.sessions?.ok === false ? (\n      <Group gap={6} wrap=\"nowrap\">\n        <Icon name=\"alert-triangle\" size={16} />\n        <Stack gap={2} style={{ minWidth: 0 }}>\n          <Text size=\"sm\">Couldn't load Emby sessions{status.sessions?.status ? \" (\" + status.sessions.status + \")\" : \"\"}</Text>\n          {status.sessions?.error ? <Text size=\"xs\" c=\"dimmed\" lineClamp={2}>{\"\" + status.sessions.error}</Text> : null}\n          <Text size=\"xs\" c=\"dimmed\">Check the widget's Emby source, and that this user has full access to the Emby integration.</Text>\n        </Stack>\n      </Group>\n    ) : rows.length === 0 ? (\n      <Group gap={6} wrap=\"nowrap\" justify=\"center\" h=\"100%\">\n        <Icon name=\"player-stop\" size={18} />\n        <Text size=\"sm\" c=\"dimmed\">Nothing playing right now</Text>\n      </Group>\n    ) : (\n      [<Group key=\"hdr\" data-emby-np=\"header\" wrap=\"wrap\" gap=\"sm\" pb={6} style={{ borderBottom: \"1px solid var(--mantine-color-default-border)\" }}>\n        <Text size=\"sm\" fw={700} w={190} style={{ flexShrink: 0 }}>User</Text>\n        <Text size=\"sm\" fw={700} style={{ flex: 1, minWidth: \"calc(12rem * var(--mantine-scale))\" }}>Currently playing</Text>\n        <Text size=\"sm\" fw={700} w={170} style={{ flexShrink: 0 }}>Status</Text>\n      </Group>].concat(rows.map((r) => (\n        <Box key={r.id} data-emby-np=\"row\" data-type={r.tag ? r.tag.toLowerCase() : \"library\"} style={{ borderBottom: \"1px solid var(--mantine-color-default-border)\" }}>\n        <Group wrap=\"wrap\" align=\"flex-start\" gap=\"sm\" py={8}>\n          <Group wrap=\"nowrap\" gap={8} w={190} style={{ flexShrink: 0 }}>\n            {r.avatar ? (\n              <Box style={{ width: \"calc(2.25rem * var(--mantine-scale))\", height: \"calc(2.25rem * var(--mantine-scale))\", flexShrink: 0, borderRadius: \"50%\", overflow: \"hidden\" }}>\n                <Image src={r.avatar} alt={r.user} fit=\"cover\" w=\"100%\" h=\"100%\" style={{ objectPosition: \"center top\" }} />\n              </Box>\n            ) : (\n              <Box style={{ width: \"calc(2.25rem * var(--mantine-scale))\", height: \"calc(2.25rem * var(--mantine-scale))\", flexShrink: 0, borderRadius: \"50%\", backgroundColor: \"var(--mantine-primary-color-filled)\", display: \"flex\", alignItems: \"center\", justifyContent: \"center\" }}>\n                <Text size=\"sm\" fw={700} c=\"white\">{r.user.slice(0, 1).toUpperCase()}</Text>\n              </Box>\n            )}\n            <Stack gap={0} style={{ minWidth: 0 }}>\n              <Text size=\"sm\" fw={600} truncate=\"end\" title={r.user}>{r.user}</Text>\n              <Text size=\"xs\" c=\"dimmed\" lineClamp={2} title={r.device}>{r.device}</Text>\n            </Stack>\n          </Group>\n          <Group gap=\"sm\" wrap=\"nowrap\" align=\"center\" style={{ flex: 1, minWidth: \"calc(12rem * var(--mantine-scale))\" }}>\n          {options.titleArt === \"posters\" ? (\n            <Box data-emby-np=\"art-slot\" style={{ width: \"calc(3.5rem * var(--mantine-scale))\", flexShrink: 0, alignSelf: \"center\", display: \"flex\", justifyContent: \"center\" }}>\n              {r.art ? (\n                <Box data-emby-np=\"poster\" style={{ width: \"calc(3.5rem * var(--mantine-scale))\", height: \"calc(5.25rem * var(--mantine-scale))\", borderRadius: 6, overflow: \"hidden\" }}>\n                  <Image src={r.art} alt=\"\" fit=\"cover\" w=\"100%\" h=\"100%\" />\n                </Box>\n              ) : r.logo ? (\n                <Box title={r.live ? r.item.Name : r.item.ChannelName} style={{ width: \"calc(3.25rem * var(--mantine-scale))\", height: \"calc(3.25rem * var(--mantine-scale))\" }}>\n                  <Image src={r.logo} alt={r.live ? r.item.Name : r.item.ChannelName ?? \"\"} fit=\"contain\" w=\"100%\" h=\"100%\" />\n                </Box>\n              ) : (\n                <Text size=\"xl\" c=\"dimmed\" style={{ display: \"inline-flex\" }}><Icon name={r.icon} size=\"1.2em\" /></Text>\n              )}\n            </Box>\n          ) : null}\n          <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>\n            <Anchor data-emby-np=\"title-link\" {...(r.href ? { href: r.href, target: \"_blank\", rel: \"noopener noreferrer\" } : {})} underline={r.href ? \"hover\" : \"never\"} c=\"inherit\" style={{ display: \"block\", color: \"inherit\", minWidth: 0, cursor: r.href ? \"pointer\" : \"default\" }}>\n            <Group gap={8} wrap=\"nowrap\" align=\"center\">\n              {options.titleArt === \"posters\" ? null : r.logo ? (\n                <Box title={r.live ? r.item.Name : r.item.ChannelName} style={{ width: \"calc(1.75rem * var(--mantine-scale))\", height: \"calc(1.75rem * var(--mantine-scale))\", flexShrink: 0, display: \"flex\", alignItems: \"center\", justifyContent: \"center\" }}>\n                  <Image src={r.logo} alt={r.live ? r.item.Name : r.item.ChannelName ?? \"\"} fit=\"contain\" w=\"100%\" h=\"100%\" />\n                </Box>\n              ) : (\n                <Text size=\"sm\" style={{ display: \"inline-flex\", flexShrink: 0, lineHeight: 1.45 }}><Icon name={r.icon} size=\"1.3em\" /></Text>\n              )}\n              <Text data-emby-np=\"title\" size=\"sm\" fw={600} lineClamp={3} title={r.href ? \"Open \" + r.title + \" in Emby\" : r.title} style={{ minWidth: 0 }}>{r.title}</Text>\n            </Group>\n            </Anchor>\n            {r.sub || r.tag || r.paused ? (\n              <Group gap={6} wrap=\"nowrap\">\n                {r.tag ? <Badge data-emby-np=\"tag\" size=\"xs\" radius=\"xl\" variant=\"filled\" color={r.tag === \"LIVE\" ? \"red.8\" : r.tag === \"DVR\" ? \"violet.7\" : \"blue.7\"} style={{ flexShrink: 0, backgroundColor: r.tag === \"LIVE\" ? \"var(--mantine-color-red-8)\" : r.tag === \"DVR\" ? \"var(--mantine-color-violet-7)\" : \"var(--mantine-color-blue-7)\", color: \"white\" }}>{r.tag}</Badge> : null}\n                {r.paused ? <Badge data-emby-np=\"paused\" size=\"xs\" radius=\"xl\" variant=\"filled\" color=\"gray.7\" style={{ flexShrink: 0, backgroundColor: \"var(--mantine-color-gray-7)\", color: \"white\" }}>PAUSED</Badge> : null}\n                <Text size=\"xs\" c=\"dimmed\" truncate=\"end\" title={r.desc ? r.sub + \" — \" + r.desc : r.sub} style={{ cursor: r.desc ? \"help\" : undefined }}>{r.sub}</Text>\n              </Group>\n            ) : null}\n            {options.showOverview && r.desc ? <Text size=\"xs\" c=\"dimmed\" lineClamp={2} title={r.desc} style={{ opacity: 0.85 }}>{r.desc}</Text> : null}\n            {r.pct > 0 ? (\n              <Box data-emby-np=\"progress\" h={4} mt={4} style={{ borderRadius: 2, overflow: \"hidden\", backgroundColor: \"light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))\" }}>\n                <Box data-emby-np=\"progress-fill\" h={4} style={{ width: r.pct + \"%\", backgroundColor: r.tag === \"LIVE\" ? \"var(--mantine-color-red-8)\" : r.tag === \"DVR\" ? \"var(--mantine-color-violet-7)\" : r.tag === \"VOD\" ? \"var(--mantine-color-blue-7)\" : options.libraryColor === \"theme\" ? \"var(--mantine-primary-color-filled)\" : \"var(--mantine-color-green-6)\" }} />\n              </Box>\n            ) : null}\n            {r.slot || r.left >= 0 ? (\n              <Text size=\"xs\" c=\"dimmed\">{[r.slot, r.left >= 0 ? (r.left >= 60 ? Math.floor(r.left / 60) + \"h \" + (r.left % 60) + \"m left\" : r.left + \" min left\") : \"\"].filter((x) => x).join(\" · \")}</Text>\n            ) : null}\n          </Stack>\n          </Group>\n          <Stack gap={4} align=\"flex-start\" w={170} style={{ flexShrink: 0 }}>\n            <Group gap={6} wrap=\"nowrap\" align=\"center\" w=\"100%\">\n              {r.badge ? <Badge data-emby-np=\"play-method\" size=\"sm\" radius=\"xl\" variant=\"filled\" color={r.hot ? \"orange.8\" : \"gray.7\"} title={r.tip} style={{ cursor: \"help\", backgroundColor: r.hot ? \"var(--mantine-color-orange-8)\" : \"var(--mantine-color-gray-7)\", color: \"white\" }}>{r.badge}</Badge> : null}\n              {options.showStop ? <Box data-emby-np=\"stop\" title=\"Stop stream\" style={{ flexShrink: 0, marginLeft: \"auto\", width: \"calc(1.625rem * var(--mantine-scale))\", height: \"calc(1.625rem * var(--mantine-scale))\", borderRadius: 6, overflow: \"hidden\", display: \"flex\", alignItems: \"center\", justifyContent: \"center\", backgroundColor: \"var(--mantine-color-red-light)\", color: \"var(--mantine-color-red-light-color)\" }}><ActionButton requestId=\"stop\" params={{ id: r.id }} label=\"Stop stream\" size=\"compact-sm\" color=\"red\" variant=\"light\" confirmMessage={\"Stop \" + r.user + \"'s stream (\" + r.title + \")?\"} successMessage=\"Stop sent\" errorMessage=\"Couldn't stop it. The stream may have already ended, or you need permission to edit this board.\"><Icon name=\"player-stop-filled\" size={14} /></ActionButton></Box> : null}\n            </Group>\n            <Group gap={6} wrap=\"nowrap\" align=\"center\">\n              <Text size=\"xs\" style={{ display: \"inline-flex\", flexShrink: 0 }}><Icon name={r.net === \"Tailscale\" ? \"shield-lock\" : r.net === \"LAN\" ? \"wifi\" : \"world\"} size=\"1.4em\" /></Text>\n              <Text size=\"xs\" fw={500} style={{ whiteSpace: \"nowrap\" }}>{r.net}</Text>\n              {r.mb > 0 ? <Text size=\"xs\" c=\"dimmed\" style={{ whiteSpace: \"nowrap\" }}>{\"· \" + r.mb + \" Mb/s\"}</Text> : null}\n            </Group>\n            {r.res || r.hdr || r.aud ? (\n              <Group gap={4} wrap=\"wrap\">\n                {[r.res, r.hdr, r.aud].filter((x) => x).map((x) => <Badge key={x} data-emby-np=\"spec\" size=\"xs\" radius=\"sm\" variant=\"outline\" color=\"gray\" style={{ color: \"var(--mantine-color-dimmed)\", textTransform: \"none\" }}>{x}</Badge>)}\n              </Group>\n            ) : null}\n          </Stack>\n        </Group>\n        </Box>\n      )))\n    )}\n    {rows.length > 0 || options.showBranding !== false ? (\n      <Group gap={6} pt={8} mt=\"auto\" wrap=\"nowrap\" justify=\"space-between\">\n        {rows.length > 0 && !status.sessions?.loading && !status.sessions?.error && status.sessions?.ok !== false ? (\n          <Group gap={6} wrap=\"nowrap\" style={{ minWidth: 0 }}>\n            <Text size=\"xs\" c=\"dimmed\" style={{ display: \"inline-flex\", flexShrink: 0 }}><Icon name=\"broadcast\" size=\"1.3em\" /></Text>\n            <Text size=\"xs\" c=\"dimmed\" truncate=\"end\">{[(Array.isArray(data.sessions) ? data.sessions : []).filter((s) => s.NowPlayingItem)].map((all) => all.length + (all.length === 1 ? \" active stream\" : \" active streams\") + (all.length > rows.length ? \" (+\" + (all.length - rows.length) + \" more not shown)\" : \"\") + \" · Total \" + Math.round(all.reduce((a, x) => a + (x.TranscodingInfo?.Bitrate ?? x.NowPlayingItem.Bitrate ?? 0), 0) / 100000) / 10 + \" Mb/s\")[0]}</Text>\n          </Group>\n        ) : <Box />}\n        {options.showBranding !== false ? (\n          <Group gap={6} wrap=\"nowrap\" style={{ flexShrink: 0 }}>\n            <Image src=\"https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/emby.svg\" alt=\"Emby\" w={18} h={18} fit=\"contain\" />\n            <Text size=\"sm\" fw={500}>Emby</Text>\n          </Group>\n        ) : null}\n      </Group>\n    ) : null}\n  </Stack>\n))[0]}\n</Box>\n"
+}
